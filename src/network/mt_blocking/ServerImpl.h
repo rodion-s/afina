@@ -62,7 +62,7 @@ private:
 
     uint32_t max_workers;
 
-    std::mutex _sock_mutx;
+    std::mutex _mtx;
 
     std::set<int> _client_sockets;
 

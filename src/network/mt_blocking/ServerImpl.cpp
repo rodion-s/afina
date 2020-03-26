@@ -91,7 +91,7 @@ void ServerImpl::Stop() {
 
 // See Server.h
 void ServerImpl::Join() {
-    std::unique_lock<std::mutex> lock(_sock_mutx);
+    std::unique_lock<std::mutex> lock(_mtx);
     while (workers_num != 0) {
         _finish.wait(lock);
     }
@@ -141,7 +141,7 @@ void ServerImpl::OnRun() {
             ++workers_num;
             std::thread(&ServerImpl::worker, this, client_socket).detach();
             {
-                std::lock_guard<std::mutex> lock(_sock_mutx);
+                std::lock_guard<std::mutex> lock(_mtx);
                 _client_sockets.insert(client_socket);
             }
         } else {
@@ -251,7 +251,7 @@ void ServerImpl::worker(int client_socket) {
     parser.Reset();
 
     {
-        std::lock_guard<std::mutex> lock(_sock_mutx);
+        std::lock_guard<std::mutex> lock(_mtx);
         _client_sockets.erase(client_socket);
     }
 
