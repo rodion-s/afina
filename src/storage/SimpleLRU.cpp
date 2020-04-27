@@ -81,28 +81,32 @@ void SimpleLRU::remove(lru_node &node) {
 
 // See MapBasedGlobalLockImpl.h
 bool SimpleLRU::Put(const std::string &key, const std::string &value) {
+    auto requested_size = key.size() + value.size();
+    if (requested_size > _max_size) {
+        return false;
+    }
     auto it = _lru_index.find(key);
     if (it == _lru_index.end()) {
-        auto requested_size = key.size() + value.size();
-        if (requested_size > _max_size) {
-            return false;
-        }
         add(key, value);
     } else {
-        lru_node &overwrite_node = it->second;
-        size_t diff_size = value.size() - overwrite_node.value.size();
-        if (_current_size + diff_size > _max_size) {
-            return false;
+        lru_node &node = it->second;
+        move_back(node);
+        while (value.size() - it->second.get().value.size() + _current_size > _max_size) {
+            pop_front();
         }
-        _current_size += diff_size;
-        overwrite_node.value = value;
-        move_back(overwrite_node);
+        _current_size += value.size() - it->second.get().value.size();
+        node.value = value;
+        
+        return true;
     }
     return true;
 }
 
 // See MapBasedGlobalLockImpl.h
 bool SimpleLRU::PutIfAbsent(const std::string &key, const std::string &value) {
+    if (key.size() + value.size() > _max_size) {
+        return false;
+    }
     if (_lru_index.find(key) != _lru_index.end()) {
         return false;
     } else {
@@ -113,20 +117,20 @@ bool SimpleLRU::PutIfAbsent(const std::string &key, const std::string &value) {
 
 // See MapBasedGlobalLockImpl.h
 bool SimpleLRU::Set(const std::string &key, const std::string &value) {
+    if (key.size() + value.size() > _max_size) {
+        return false;
+    }
     auto it = _lru_index.find(key);
     if (it == _lru_index.end()) {
         return false;
     } else {
+        lru_node &node = it->second;
+        move_back(node);
         while (value.size() - it->second.get().value.size() + _current_size > _max_size) {
-            if (it->second.get().key == head->key) {
-                return false;
-            }
             pop_front();
         }
-        lru_node &node = it->second;
         _current_size += value.size() - it->second.get().value.size();
         node.value = value;
-        move_back(node);
         return true;
     }
 }
@@ -144,7 +148,6 @@ bool SimpleLRU::Delete(const std::string &key) {
     _lru_index.erase(it);
 
     remove(node);
-
     return true;
 }
 
