@@ -37,6 +37,7 @@ ServerImpl::~ServerImpl() {}
 // See Server.h
 void ServerImpl::Start(uint16_t port, uint32_t n_accept, uint32_t n_workers) {
     workers_num = 0;
+    max_workers = n_workers;
 
     _logger = pLogging->select("network");
     _logger->info("Start mt_blocking network service");
@@ -81,6 +82,8 @@ void ServerImpl::Start(uint16_t port, uint32_t n_accept, uint32_t n_workers) {
 
 // See Server.h
 void ServerImpl::Stop() {
+    std::lock_guard<std::mutex> lock(_mtx);
+
     running.store(false);
     shutdown(_server_socket, SHUT_RDWR);
 
@@ -139,11 +142,11 @@ void ServerImpl::OnRun() {
         // TODO: Start new thread and process data from/to connection
         if (workers_num < max_workers) {
             ++workers_num;
-            std::thread(&ServerImpl::worker, this, client_socket).detach();
             {
                 std::lock_guard<std::mutex> lock(_mtx);
                 _client_sockets.insert(client_socket);
             }
+            std::thread(&ServerImpl::worker, this, client_socket).detach();
         } else {
             _logger->debug("All workers are busy");
             close(client_socket);
@@ -160,7 +163,7 @@ void ServerImpl::worker(int client_socket) {
     // - command_to_execute: last command parsed out of stream
     // - arg_remains: how many bytes to read from stream to get command argument
     // - argument_for_command: buffer stores argument
-    std::size_t arg_remains;
+    std::size_t arg_remains = 0;
     Protocol::Parser parser;
     std::string argument_for_command;
     std::unique_ptr<Execute::Command> command_to_execute;
@@ -205,7 +208,9 @@ void ServerImpl::worker(int client_socket) {
                     _logger->debug("Fill argument: {} bytes of {}", readed_bytes, arg_remains);
                     // There is some parsed command, and now we are reading argument
                     std::size_t to_read = std::min(arg_remains, std::size_t(readed_bytes));
+
                     argument_for_command.append(client_buffer, to_read);
+                    
 
                     std::memmove(client_buffer, client_buffer + to_read, readed_bytes - to_read);
                     arg_remains -= to_read;
@@ -233,22 +238,24 @@ void ServerImpl::worker(int client_socket) {
             } // while (readed_bytes)
         }
 
-        if (readed_bytes == 0 || errno == EAGAIN) {
+        if (readed_bytes == 0 || errno == EAGAIN || errno == EWOULDBLOCK) {
             _logger->debug("Connection closed");
         } else {
             throw std::runtime_error(std::string(strerror(errno)));
         }
     } catch (std::runtime_error &ex) {
         _logger->error("Failed to process connection on descriptor {}: {}", client_socket, ex.what());
+        std::string result("ERROR: Failed to process connection\r\n");
+        send(client_socket, result.data(), result.size(), 0);
     }
 
     // We are done with this connection
     close(client_socket);
 
     // Prepare for the next command: just in case if connection was closed in the middle of executing something
-    command_to_execute.reset();
+    /*command_to_execute.reset();
     argument_for_command.resize(0);
-    parser.Reset();
+    parser.Reset();*/
 
     {
         std::lock_guard<std::mutex> lock(_mtx);
@@ -257,7 +264,7 @@ void ServerImpl::worker(int client_socket) {
 
     --workers_num;
     if (workers_num == 0) {
-        _finish.notify_one();    
+        _finish.notify_all(); 
     }
     
 }
