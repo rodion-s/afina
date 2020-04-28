@@ -21,6 +21,30 @@
 #include <afina/Storage.h>
 #include <afina/logging/Service.h>
 
+
+#include <cassert>
+#include <cstring>
+#include <iostream>
+#include <memory>
+#include <stdexcept>
+#include <algorithm>
+
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <pthread.h>
+#include <signal.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#include <spdlog/logger.h>
+
+#include <afina/Storage.h>
+#include <afina/execute/Command.h>
+#include <afina/logging/Service.h>
+
+
 #include "Connection.h"
 #include "Utils.h"
 
@@ -91,6 +115,12 @@ void ServerImpl::Stop() {
     if (eventfd_write(_event_fd, 1)) {
         throw std::runtime_error("Failed to wakeup workers");
     }
+
+    for (auto connection : connections) {
+        close(connection->_socket);
+        delete connection;
+    }
+    close(_server_socket);
 }
 
 // See Server.h
@@ -164,6 +194,7 @@ void ServerImpl::OnRun() {
 
                 close(pc->_socket);
                 pc->OnClose();
+                connections.erase(pc);
 
                 delete pc;
             } else if (pc->_event.events != old_mask) {
@@ -172,6 +203,7 @@ void ServerImpl::OnRun() {
 
                     close(pc->_socket);
                     pc->OnClose();
+                    connections.erase(pc);
 
                     delete pc;
                 }
@@ -207,7 +239,7 @@ void ServerImpl::OnNewConnection(int epoll_descr) {
         }
 
         // Register the new FD to be monitored by epoll.
-        Connection *pc = new(std::nothrow) Connection(infd);
+        Connection *pc = new(std::nothrow) Connection(infd, pStorage, _logger);
         if (pc == nullptr) {
             throw std::runtime_error("Failed to allocate connection");
         }
@@ -218,10 +250,13 @@ void ServerImpl::OnNewConnection(int epoll_descr) {
             if (epoll_ctl(epoll_descr, EPOLL_CTL_ADD, pc->_socket, &pc->_event)) {
                 pc->OnError();
                 delete pc;
+            } else {
+                connections.insert(pc);
             }
         }
     }
 }
+
 
 } // namespace STnonblock
 } // namespace Network

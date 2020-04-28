@@ -164,5 +164,6 @@ bool SimpleLRU::Get(const std::string &key, std::string &value) {
     return true;
 }
 
+
 } // namespace Backend
 } // namespace Afina
