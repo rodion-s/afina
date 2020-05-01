@@ -19,6 +19,7 @@
 #include "network/mt_nonblocking/ServerImpl.h"
 #include "network/st_blocking/ServerImpl.h"
 #include "network/st_nonblocking/ServerImpl.h"
+#include "network/st_coroutine/ServerImpl.h"
 
 #include "storage/SimpleLRU.h"
 #include "storage/ThreadSafeSimpleLRU.h"
@@ -64,6 +65,7 @@ public:
             network_type = options["network"].as<std::string>();
         }
 
+        //network_type = "mt_block";
         if (network_type == "st_block") {
             server = std::make_shared<Afina::Network::STblocking::ServerImpl>(storage, logService);
         } else if (network_type == "mt_block") {
@@ -71,7 +73,9 @@ public:
         } else if (network_type == "st_nonblock") {
             server = std::make_shared<Afina::Network::STnonblock::ServerImpl>(storage, logService);
         } else if (network_type == "mt_nonblock") {
-            server = std::make_shared<Afina::Network::MTnonblock::ServerImpl>(storage, logService);
+            server = std::make_shared<Afina::Network::MTnonblock::ServerImpl>(storage, logService); 
+        } else if (network_type = "st_coroutine") {
+        	server = std::make_shared<Afina::Network::STcoroutine::ServerImpl>(storage, logService);
         } else {
             throw std::runtime_error("Unknown network type");
         }
