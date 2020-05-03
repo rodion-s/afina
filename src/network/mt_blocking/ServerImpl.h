@@ -3,8 +3,11 @@
 
 #include <atomic>
 #include <thread>
+#include <condition_variable>
+#include <set>
 
 #include <afina/network/Server.h>
+#include <afina/concurrency/Executor.h>
 
 namespace spdlog {
 class logger;
@@ -39,6 +42,9 @@ protected:
     void OnRun();
 
 private:
+
+    void worker(int client_socket);
+
     // Logger instance
     std::shared_ptr<spdlog::logger> _logger;
 
@@ -52,6 +58,19 @@ private:
 
     // Thread to run network on
     std::thread _thread;
+
+    std::atomic<int> workers_num;
+
+    uint32_t max_workers;
+
+    std::mutex _mtx;
+
+    std::set<int> _client_sockets;
+
+
+    std::condition_variable _finish;
+
+    Afina::Concurrency::Executor executor;
 };
 
 } // namespace MTblocking
