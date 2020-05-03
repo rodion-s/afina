@@ -10,6 +10,7 @@ namespace Network {
 namespace MTnonblock {
 
 // See Connection.h
+	
 void Connection::Start() {
 	std::lock_guard<std::mutex> lock(_mutex);
 	_logger->debug("Connection on {} socket started", _socket);
@@ -106,6 +107,7 @@ void Connection::DoRead() {
                     _event.events = EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLOUT;
                     responses.push_back(result);
                     
+                    
                     // Prepare for the next command
                     command_to_execute.reset();
                     argument_for_command.resize(0);
@@ -121,7 +123,7 @@ void Connection::DoRead() {
         }
     } catch (std::runtime_error &ex) {
         //DIFF
-        //_event.events = EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLOUT;
+        _event.events = EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLOUT;
         //DIFF
         std::string result("ERROR: Failed to process connection\r\n");
         send(_socket, result.data(), result.size(), 0);

@@ -216,6 +216,7 @@ void ServerImpl::OnRun() {
                         std::lock_guard<std::mutex> lock(_mtx);
                         connections.insert(pc);
                     }
+                    
                 }
             }
         }
