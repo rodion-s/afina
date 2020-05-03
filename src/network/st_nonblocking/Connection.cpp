@@ -52,7 +52,11 @@ void Connection::Start() {
 void Connection::OnError() {
 	_logger->error("Connection on {} socket has error", _socket);
 	std::string result("ERROR: Failed to process connection\r\n");
-    send(_socket, result.data(), result.size(), 0);
+
+	constexpr int attempts = 3;
+    for (int k = 0, status = 0; k < attempts || status == -1; ++k) {
+    	status = send(_socket, result.data(), result.size(), 0);
+    }
 	_is_alive = false;
 }
 
@@ -67,7 +71,6 @@ void Connection::DoRead() {
 	_logger->debug("Read from {} socket", _socket);
 	try {
         int readed_bytes = -1;
-        char client_buffer[4096];
         while ((readed_bytes = read(_socket, client_buffer + alrdy_prsed_bytes, sizeof(client_buffer) - alrdy_prsed_bytes)) > 0) {
             _logger->debug("Got {} bytes from socket", readed_bytes);
             alrdy_prsed_bytes += readed_bytes;
@@ -161,7 +164,7 @@ void Connection::DoWrite() {
     msgs[0].iov_base = &(responses[0][0]) + written_position;
 
     for (int i = 1; i < responses.size(); ++i) {
-        msgs[i].iov_len = responses.size();
+        msgs[i].iov_len = responses[i].size();
         msgs[i].iov_base = &(responses[i][0]);
     }
     ssize_t written = writev(_socket, msgs, responses.size());
@@ -170,7 +173,7 @@ void Connection::DoWrite() {
     }
     written_position += written;
 
-    int i;
+    int i = 0;
     for (i = 0; i < responses.size() && written_position - msgs[i].iov_len >= 0; ++i) {
         written_position -= msgs[i].iov_len;
     }

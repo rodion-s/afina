@@ -46,13 +46,14 @@ private:
 
     Protocol::Parser parser;
     std::unique_ptr<Execute::Command> command_to_execute;
-    std::size_t arg_remains;
+    std::size_t arg_remains = 0;
     std::string argument_for_command;
 
-    int alrdy_prsed_bytes;
-    ssize_t written_position;
+    int alrdy_prsed_bytes = 0;
+    ssize_t written_position = 0;
     std::vector<std::string> responses;
 
+    char client_buffer[4096] = { 0 };
 };
 
 
