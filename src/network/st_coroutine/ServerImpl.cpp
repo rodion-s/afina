@@ -21,13 +21,14 @@
 #include "Connection.h"
 #include "Utils.h"
 
+
 namespace Afina {
 namespace Network {
 namespace STcoroutine {
 
 // See Server.h
-ServerImpl::ServerImpl(std::shared_ptr<Afina::Storage> ps, std::shared_ptr<Logging::Service> pl) : Server(ps, pl),
-    _engine([this]{this->unblocker();}), _ctx(nullptr) {}
+ServerImpl::ServerImpl(std::shared_ptr<Afina::Storage> ps, std::shared_ptr<Logging::Service> pl)
+    : Server(ps, pl), _ctx(nullptr) {}
 
 // See Server.h
 ServerImpl::~ServerImpl() {}
@@ -77,17 +78,24 @@ void ServerImpl::Start(uint16_t port, uint32_t n_acceptors, uint32_t n_workers) 
         throw std::runtime_error("Failed to create epoll file descriptor: " + std::string(strerror(errno)));
     }
 
-    _work_thread = std::thread([this]{ this->_engine.start(static_cast<void(*)(ServerImpl *)>([](ServerImpl *s){ s->OnRun(); }), this); });
+    _work_thread = std::thread(
+        [this] { this->_engine.start(
+            static_cast<void (*)(ServerImpl *)>([](ServerImpl *s) { s->OnRun(); }), this);
+        });
 }
 
 // See Server.h
 void ServerImpl::Stop() {
     _logger->warn("Stop network service");
 
-
     // Wakeup threads that are sleep on epoll_wait
     if (eventfd_write(_event_fd, 1)) {
         throw std::runtime_error("Failed to wakeup workers");
+    }
+
+    for (auto connection : connections) {
+        close(connection->_socket);
+        delete connection;
     }
     close(_server_socket);
 }
@@ -130,8 +138,6 @@ void ServerImpl::OnRun() {
             struct epoll_event &current_event = mod_list[i];
             if (current_event.data.fd == _event_fd) {
                 _logger->debug("Break acceptor due to stop signal");
-                _engine.unblock_all();
-                _engine.block(_ctx);
                 run = false;
                 continue;
             } else if (current_event.data.fd == _server_socket) {
@@ -141,20 +147,15 @@ void ServerImpl::OnRun() {
 
             // That is some connection!
             auto *pc = static_cast<Connection *>(current_event.data.ptr);
-
+            // sdelat ne auto, a Connection
             auto old_mask = pc->_event.events;
             if ((current_event.events & EPOLLERR) || (current_event.events & EPOLLHUP)) {
                 pc->OnError();
             } else if (current_event.events & EPOLLRDHUP) {
                 pc->OnClose();
             } else {
-                // Depends on what connection wants...
                 if (current_event.events & EPOLLIN || current_event.events & EPOLLOUT) {
-                    _engine.unblock(pc->_ctx);
-                    _engine.block(_ctx);
-                }
-                if (epoll_ctl(epoll_descr, EPOLL_CTL_ADD, pc->_socket, &pc->_event)) {
-                    _logger->error("Failed to delete connection from epoll");
+                    _engine.sched(pc->_ctx);
                 }
             }
 
@@ -163,9 +164,12 @@ void ServerImpl::OnRun() {
                 if (epoll_ctl(epoll_descr, EPOLL_CTL_DEL, pc->_socket, &pc->_event)) {
                     _logger->error("Failed to delete connection from epoll");
                 }
+                if (pc->_ctx) {
+                    _engine.sched(pc->_ctx);
+                }
                 close(pc->_socket);
                 pc->OnClose();
-
+                connections.erase(pc);
                 delete pc;
             } else if (pc->_event.events != old_mask) {
                 if (epoll_ctl(epoll_descr, EPOLL_CTL_MOD, pc->_socket, &pc->_event)) {
@@ -173,6 +177,7 @@ void ServerImpl::OnRun() {
 
                     close(pc->_socket);
                     pc->OnClose();
+                    connections.erase(pc);
 
                     delete pc;
                 }
@@ -192,7 +197,7 @@ void ServerImpl::OnNewConnection(int epoll_descr) {
         in_len = sizeof in_addr;
         int infd = accept4(_server_socket, &in_addr, &in_len, SOCK_NONBLOCK | SOCK_CLOEXEC);
         if (infd == -1) {
-            if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 break; // We have processed all incoming connections.
             } else {
                 _logger->error("Failed to accept socket");
@@ -209,28 +214,29 @@ void ServerImpl::OnNewConnection(int epoll_descr) {
         }
 
         // Register the new FD to be monitored by epoll.
-        Connection *pc = new(std::nothrow) Connection(infd, pStorage, _logger);
+        Connection *pc = new (std::nothrow) Connection(infd, pStorage, _logger);
         if (pc == nullptr) {
             throw std::runtime_error("Failed to allocate connection");
         }
 
         // Register connection in worker's epoll
         pc->Start();
-        pc->_ctx = static_cast<Afina::Coroutine::Engine::context *>(_engine.run(static_cast<void(*)(Connection *, Afina::Coroutine::Engine &)>
-            ([](Connection *pc, Afina::Coroutine::Engine &engine) { pc->DoReadWrite(engine); }), (Connection *) pc, _engine));
+        pc->_ctx = static_cast<Afina::Coroutine::Engine::context *>(
+            _engine.run(static_cast<void (*)(Connection *, Afina::Coroutine::Engine &)>
+                ([](Connection *pc, Afina::Coroutine::Engine &engine) { pc->work(engine); }),
+                    (Connection *)pc, _engine)
+            );
+        pc->cour_worker = _engine.get_cur_routine();
+
         if (pc->isAlive()) {
             if (epoll_ctl(epoll_descr, EPOLL_CTL_ADD, pc->_socket, &pc->_event)) {
                 pc->OnError();
                 delete pc;
-            }
+            } else { 
+                connections.insert(pc); 
+            } 
         }
     }
-}
-
-void ServerImpl::unblocker() {
-    _logger->debug("Unblocker running");
-    _engine.unblock(_ctx);
-    _engine.yield();
 }
 
 } // namespace STcoroutine

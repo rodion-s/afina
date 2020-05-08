@@ -15,7 +15,7 @@ namespace Coroutine {
  * Allows to run coroutine and schedule its execution. Not threadsafe
  */
 class Engine final {
-private:
+public:
     /**
      * A single coroutine instance which could be scheduled for execution
      * should be allocated on heap
@@ -26,7 +26,7 @@ private:
         char *Low = nullptr;
 
         // coroutine stack end address
-        char *Hight = nullptr;
+        char *High = nullptr; //БЫЛО Hight!!
 
         // coroutine stack copy buffer
         std::tuple<char *, uint32_t> Stack = std::make_tuple(nullptr, 0);
@@ -38,7 +38,7 @@ private:
         struct context *prev = nullptr;
         struct context *next = nullptr;
     } context;
-
+private:
     /**
      * Where coroutines stack begins
      */
@@ -80,6 +80,8 @@ public:
     Engine() : StackBottom(0), cur_routine(nullptr), alive(nullptr) {}
     Engine(Engine &&) = delete;
     Engine(const Engine &) = delete;
+
+    context *get_cur_routine() { return cur_routine; } // ЭТОГО НЕ БЫЛО
 
     /**
      * Gives up current routine execution and let engine to schedule other one. It is not defined when

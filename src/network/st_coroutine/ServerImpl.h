@@ -1,13 +1,15 @@
 #ifndef AFINA_NETWORK_ST_COROUTINE_SERVER_H
 #define AFINA_NETWORK_ST_COROUTINE_SERVER_H
 
+#include <arpa/inet.h>
 #include <thread>
 #include <vector>
-#include <arpa/inet.h>
 
-#include <afina/network/Server.h>
-#include <afina/coroutine/Engine.h>
 #include "Connection.h"
+#include "Utils.h"
+#include <afina/coroutine/Engine.h>
+#include <afina/network/Server.h>
+#include <unordered_set>
 
 namespace spdlog {
 class logger;
@@ -59,11 +61,11 @@ private:
 
     // IO thread
     std::thread _work_thread;
+    std::unordered_set<Connection*> connections;
+
 
     Afina::Coroutine::Engine _engine;
-
-    void unblocker();
-
+    Afina::Coroutine::Engine::context *_ctx;
 };
 
 } // namespace STcoroutine

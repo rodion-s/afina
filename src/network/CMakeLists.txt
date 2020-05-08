@@ -11,6 +11,10 @@ set(SOURCE_FILES
     mt_nonblocking/Connection.cpp
     mt_nonblocking/Worker.cpp
     mt_nonblocking/Utils.cpp
+
+    st_coroutine/ServerImpl.cpp
+    st_coroutine/Connection.cpp
+    st_coroutine/Utils.cpp
 )
 
 add_library(Network ${SOURCE_FILES})
