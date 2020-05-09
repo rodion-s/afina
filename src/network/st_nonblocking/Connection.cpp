@@ -141,7 +141,7 @@ void Connection::DoRead() {
         }
 
         if (readed_bytes == 0 || errno == EAGAIN || EWOULDBLOCK) {
-            _logger->debug("Readed");
+            _logger->debug("Reading finished");
         } else {
             throw std::runtime_error(std::string(strerror(errno)));
         }
