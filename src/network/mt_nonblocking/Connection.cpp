@@ -122,11 +122,12 @@ void Connection::DoRead() {
             throw std::runtime_error(std::string(strerror(errno)));
         }
     } catch (std::runtime_error &ex) {
-        //DIFF
         _event.events = EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLOUT;
-        //DIFF
         std::string result("ERROR: Failed to process connection\r\n");
-        send(_socket, result.data(), result.size(), 0);
+
+        if (send(_socket, result.data(), result.size(), 0) <= 0) {
+        	_logger->error("Failed to send error response to socket\r\n");
+        }
         OnError();
     }
 }
