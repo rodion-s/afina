@@ -169,7 +169,11 @@ void Connection::DoWrite() {
     }
     ssize_t written = writev(_socket, msgs, responses.size());
     if (written <= 0) {
-        OnError();
+    	if (errno ==  EAGAIN || errno == EINTR) {
+    		return;	
+    	} else {
+    		OnError();
+    	}
     }
     written_position += written;
 

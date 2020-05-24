@@ -83,7 +83,7 @@ void ServerImpl::Start(uint16_t port, uint32_t n_acceptors, uint32_t n_workers) 
     }
 
     int opts = 1;
-    if (setsockopt(_server_socket, SOL_SOCKET, (SO_KEEPALIVE), &opts, sizeof(opts)) == -1) {
+    if (setsockopt(_server_socket, SOL_SOCKET, (SO_REUSEADDR), &opts, sizeof(opts)) == -1) {
         close(_server_socket);
         throw std::runtime_error("Socket setsockopt() failed: " + std::string(strerror(errno)));
     }
@@ -116,17 +116,21 @@ void ServerImpl::Stop() {
         throw std::runtime_error("Failed to wakeup workers");
     }
 
-    for (auto connection : connections) {
-        close(connection->_socket);
-        delete connection;
+    for (auto connection: connections) {
+        shutdown(connection->_socket, SHUT_RD);
     }
-    close(_server_socket);
+
 }
 
 // See Server.h
 void ServerImpl::Join() {
+    _logger->warn("Join network service...");
+    
     // Wait for work to be complete
     _work_thread.join();
+    
+    shutdown(_server_socket, SHUT_RDWR);
+    close(_server_socket);
 }
 
 // See ServerImpl.h
@@ -160,7 +164,7 @@ void ServerImpl::OnRun() {
         for (int i = 0; i < nmod; i++) {
             struct epoll_event &current_event = mod_list[i];
             if (current_event.data.fd == _event_fd) {
-                _logger->debug("Break acceptor due to stop signal");
+                _logger->warn("Break acceptor due to stop signal");
                 run = false;
                 continue;
             } else if (current_event.data.fd == _server_socket) {
@@ -211,6 +215,12 @@ void ServerImpl::OnRun() {
         }
     }
     _logger->warn("Acceptor stopped");
+
+    for (auto connection : connections) {
+        shutdown(connection->_socket, SHUT_WR);
+        close(connection->_socket);
+        delete connection;
+    }
 }
 
 void ServerImpl::OnNewConnection(int epoll_descr) {
