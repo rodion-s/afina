@@ -33,8 +33,8 @@ namespace STnonblock {
 
 // See Connection.h
 void Connection::Start() {
-	_logger->debug("Connection on {} socket started", _socket);
-	_event.events = EPOLLIN | EPOLLRDHUP | EPOLLERR;
+    _logger->debug("Connection on {} socket started", _socket);
+    _event.events = EPOLLIN | EPOLLRDHUP | EPOLLERR;
     _event.data.fd = _socket;
     _event.data.ptr = this;
 
@@ -51,25 +51,25 @@ void Connection::Start() {
 
 // See Connection.h
 void Connection::OnError() {
-	_logger->error("Connection on {} socket has error", _socket);
-	std::string result("ERROR: Failed to process connection\r\n");
+    _logger->error("Connection on {} socket has error", _socket);
+    std::string result("ERROR: Failed to process connection\r\n");
 
-	if (send(_socket, result.data(), result.size(), 0) <= 0) {
+    if (send(_socket, result.data(), result.size(), 0) <= 0) {
         _logger->error("Failed to send error response to socket\r\n");
     }
-	_is_alive = false;
+    _is_alive = false;
 }
 
 // See Connection.h
 void Connection::OnClose() {
-	_logger->debug("Close {} socket", _socket);
+    _logger->debug("Close {} socket", _socket);
     _is_alive = false;
 }
 
 // See Connection.h
 void Connection::DoRead() {
-	_logger->debug("Read from {} socket", _socket);
-	try {
+    _logger->debug("Read from {} socket", _socket);
+    try {
         int readed_bytes = -1;
         while ((readed_bytes = read(_socket, client_buffer + alrdy_prsed_bytes, sizeof(client_buffer) - alrdy_prsed_bytes)) > 0) {
             _logger->debug("Got {} bytes from socket", readed_bytes);
@@ -110,9 +110,9 @@ void Connection::DoRead() {
                     std::size_t to_read = std::min(arg_remains, std::size_t(readed_bytes));
 
                     if (to_read == arg_remains) {
-                    	argument_for_command.append(client_buffer, to_read - 2);	
+                        argument_for_command.append(client_buffer, to_read - 2);    
                     } else {
-                    	argument_for_command.append(client_buffer, to_read);
+                        argument_for_command.append(client_buffer, to_read);
                     }
                     
                     std::memmove(client_buffer, client_buffer + to_read, readed_bytes - to_read);
@@ -153,11 +153,11 @@ void Connection::DoRead() {
 
 // See Connection.h
 void Connection::DoWrite() {
-	_logger->debug("DoWrite on {}", _socket);
+    _logger->debug("DoWrite on {}", _socket);
 
-	if (responses.empty()) {
+    if (responses.empty()) {
         return;
-	}
+    }
 
     struct iovec msgs[responses.size()];
     msgs[0].iov_len = responses[0].size() - written_position;
@@ -169,11 +169,11 @@ void Connection::DoWrite() {
     }
     ssize_t written = writev(_socket, msgs, responses.size());
     if (written <= 0) {
-    	if (errno ==  EAGAIN || errno == EINTR) {
-    		return;	
-    	} else {
-    		OnError();
-    	}
+        if (errno ==  EAGAIN || errno == EINTR) {
+            return; 
+        } else {
+            OnError();
+        }
     }
     written_position += written;
 
@@ -192,3 +192,4 @@ void Connection::DoWrite() {
 } // namespace STnonblock
 } // namespace Network
 } // namespace Afina
+

@@ -62,3 +62,4 @@ private:
 } // namespace Afina
 
 #endif // AFINA_NETWORK_ST_NONBLOCKING_CONNECTION_H
+
