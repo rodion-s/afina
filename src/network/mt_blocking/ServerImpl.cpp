@@ -29,8 +29,7 @@ namespace Network {
 namespace MTblocking {
 
 // See Server.h
-ServerImpl::ServerImpl(std::shared_ptr<Afina::Storage> ps, std::shared_ptr<Logging::Service> pl) : Server(ps, pl),
-    executor("", 5, 5, 10, 1000) {}
+ServerImpl::ServerImpl(std::shared_ptr<Afina::Storage> ps, std::shared_ptr<Logging::Service> pl) : Server(ps, pl) {}
 
 // See Server.h
 ServerImpl::~ServerImpl() {}
@@ -41,7 +40,7 @@ void ServerImpl::Start(uint16_t port, uint32_t n_accept, uint32_t n_workers) {
     max_workers = n_workers;
 
     _logger = pLogging->select("network");
-    _logger->info("Start mt_blocking network service (hw3)");
+    _logger->info("Start mt_blocking network service");
 
     sigset_t sig_mask;
     sigemptyset(&sig_mask);
@@ -49,8 +48,6 @@ void ServerImpl::Start(uint16_t port, uint32_t n_accept, uint32_t n_workers) {
     if (pthread_sigmask(SIG_BLOCK, &sig_mask, NULL) != 0) {
         throw std::runtime_error("Unable to mask SIGPIPE");
     }
-
-    
 
     struct sockaddr_in server_addr;
     std::memset(&server_addr, 0, sizeof(server_addr));
@@ -81,8 +78,6 @@ void ServerImpl::Start(uint16_t port, uint32_t n_accept, uint32_t n_workers) {
 
     running.store(true);
     _thread = std::thread(&ServerImpl::OnRun, this);
-
-    executor.Start();
 }
 
 // See Server.h
@@ -95,7 +90,6 @@ void ServerImpl::Stop() {
     for (auto socket : _client_sockets) {
         shutdown(socket, SHUT_RD);
     }
-    executor.Stop(true);
 }
 
 // See Server.h
@@ -108,7 +102,6 @@ void ServerImpl::Join() {
     assert(_thread.joinable());
     _thread.join();
     close(_server_socket);
-
 }
 
 // See Server.h
@@ -147,7 +140,7 @@ void ServerImpl::OnRun() {
         }
 
         // TODO: Start new thread and process data from/to connection
-        /*if (workers_num < max_workers) {
+        if (workers_num < max_workers) {
             ++workers_num;
             {
                 std::lock_guard<std::mutex> lock(_mtx);
@@ -156,9 +149,6 @@ void ServerImpl::OnRun() {
             std::thread(&ServerImpl::worker, this, client_socket).detach();
         } else {
             _logger->debug("All workers are busy");
-            close(client_socket);
-        }*/
-        if (!(running.load() && executor.Execute(&ServerImpl::worker, this, client_socket))) {
             close(client_socket);
         }
     }

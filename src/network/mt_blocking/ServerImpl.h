@@ -7,7 +7,6 @@
 #include <set>
 
 #include <afina/network/Server.h>
-#include <afina/concurrency/Executor.h>
 
 namespace spdlog {
 class logger;
@@ -69,8 +68,6 @@ private:
 
 
     std::condition_variable _finish;
-
-    Afina::Concurrency::Executor executor;
 };
 
 } // namespace MTblocking
