@@ -103,7 +103,6 @@ void ServerImpl::Join() {
 
     for (auto socket: _client_sockets) {
         shutdown(socket, SHUT_WR);
-        close(socket);
     }
 
     assert(_thread.joinable());
