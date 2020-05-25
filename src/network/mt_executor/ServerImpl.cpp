@@ -100,6 +100,12 @@ void ServerImpl::Join() {
     while (workers_num != 0) {
         _finish.wait(lock, [this]() { return workers_num == 0; });
     }
+
+    for (auto socket: _client_sockets) {
+        shutdown(socket, SHUT_WR);
+        close(socket);
+    }
+
     assert(_thread.joinable());
     _thread.join();
     close(_server_socket);

@@ -1,4 +1,7 @@
 #include <afina/concurrency/Executor.h>
+#include <atomic>
+#include <memory>
+
 
 namespace Afina {
 namespace Concurrency {
@@ -8,7 +11,7 @@ namespace Concurrency {
         state = State::kRun;
         for (int i = 0; i < low_watermark; ++i) {
             std::thread(
-            	[this]() { perform(this);}
+            	[this]() { perform(this); }
             			).detach();
             ++created_threads;
         }
@@ -29,11 +32,16 @@ namespace Concurrency {
         try {        
             std::function<void()> task;
             for (;;) {
-                std::unique_lock<std::mutex> lock(executor->mutex);
-                bool res = executor->empty_condition.wait_until(lock, std::chrono::system_clock::now() + executor->idle_time,
+                std::atomic<bool> res;
+                {
+                    std::unique_lock<std::mutex> lock(executor->mutex);
+                    bool result = executor->empty_condition.wait_until(lock, std::chrono::system_clock::now() + executor->idle_time,
                                                               [executor] { 
                                                               	return !(executor->tasks.empty()) || (executor->state != Executor::State::kRun);
                                                               });
+                    res.store(result, std::memory_order_relaxed);
+                }
+
                 if (res) {
                     if ((executor->state == Executor::State::kRun || executor->state == Executor::State::kStopping)
                      && !executor->tasks.empty()) {
@@ -53,8 +61,7 @@ namespace Concurrency {
             std::unique_lock<std::mutex> lock(executor->mutex);
             executor->created_threads--;
             if (executor->state == Executor::State::kStopping 
-            		&& executor->created_threads == 0 
-            		&& executor->tasks.empty()) {
+            		&& executor->created_threads == 0) {
             	executor->state = Executor::State::kStopped;
                 executor->stop_condition.notify_all();
         	}
