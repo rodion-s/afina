@@ -71,8 +71,6 @@ namespace Concurrency {
     }
 
 
-
-
 }
 } // namespace Afina
 
