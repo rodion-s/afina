@@ -57,6 +57,9 @@ private:
     ssize_t written_position;
     std::vector<std::string> responses;
     char client_buffer[4096] = { 0 };
+
+
+    std::atomic<bool> _reading_finished;
 };
 
 } // namespace MTnonblock

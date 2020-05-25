@@ -60,7 +60,7 @@ void ServerImpl::Start(uint16_t port, uint32_t n_acceptors, uint32_t n_workers) 
     }
 
     int opts = 1;
-    if (setsockopt(_server_socket, SOL_SOCKET, (SO_KEEPALIVE), &opts, sizeof(opts)) == -1) {
+    if (setsockopt(_server_socket, SOL_SOCKET, (SO_REUSEADDR), &opts, sizeof(opts)) == -1) {
         close(_server_socket);
         throw std::runtime_error("Socket setsockopt() failed: " + std::string(strerror(errno)));
     }
@@ -96,7 +96,7 @@ void ServerImpl::Start(uint16_t port, uint32_t n_acceptors, uint32_t n_workers) 
 
     _workers.reserve(n_workers);
     for (int i = 0; i < n_workers; i++) {
-        _workers.emplace_back(pStorage, pLogging);
+        _workers.emplace_back(pStorage, pLogging, this);
         _workers.back().Start(_data_epoll_fd);
     }
 
@@ -119,22 +119,42 @@ void ServerImpl::Stop() {
     if (eventfd_write(_event_fd, 1)) {
         throw std::runtime_error("Failed to wakeup workers");
     }
+
+
+    /*Нужно делать shutdown на чтение, иначе некоторые 
+    читающие потоки могут никогда не завершиться (если им присылать постоянно небольшие порции*/
+
+
     std::lock_guard<std::mutex> lock(_mtx);
-    for (auto c : connections) {
-        close(c->_socket);
-        delete c;
+    for (auto c: connections) {
+        shutdown(c->_socket, SHUT_RD);
     }
+
+    
 }
 
 // See Server.h
 void ServerImpl::Join() {
+    _logger->warn("Join network service");
     for (auto &t : _acceptors) {
         t.join();
     }
-
+    _acceptors.clear();
     for (auto &w : _workers) {
         w.Join();
     }
+
+    {
+        std::lock_guard<std::mutex> lock(_mtx);
+        for (auto c : connections) {
+            shutdown(c->_socket, SHUT_WR);
+            close(c->_socket);
+            delete c;
+        }
+    }
+
+    shutdown(_server_socket, SHUT_RDWR);
+    close(_server_socket);
 }
 
 // See ServerImpl.h
@@ -211,6 +231,9 @@ void ServerImpl::OnRun() {
                     if ((epoll_ctl_retval = epoll_ctl(_data_epoll_fd, EPOLL_CTL_ADD, pc->_socket, &pc->_event))) {
                         _logger->debug("epoll_ctl failed during connection register in workers'epoll: error {}", epoll_ctl_retval);
                         pc->OnError();
+                        // Где erase? Вот он
+                        std::lock_guard<std::mutex> lock(_mtx);
+                        connections.erase(pc);
                         delete pc;
                     } else {
                         std::lock_guard<std::mutex> lock(_mtx);
@@ -222,6 +245,15 @@ void ServerImpl::OnRun() {
         }
     }
     _logger->warn("Acceptor stopped");
+}
+
+
+void ServerImpl::delete_connection(Connection *pconn) {
+    std::lock_guard<std::mutex> lock(_mtx);
+    
+    connections.erase(pconn);
+    close(pconn->_socket);
+    delete pconn;
 }
 
 } // namespace MTnonblock

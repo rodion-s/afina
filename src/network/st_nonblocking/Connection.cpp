@@ -54,9 +54,8 @@ void Connection::OnError() {
 	_logger->error("Connection on {} socket has error", _socket);
 	std::string result("ERROR: Failed to process connection\r\n");
 
-	constexpr int attempts = 3;
-    for (int k = 0, status = 0; k < attempts || status == -1; ++k) {
-    	status = send(_socket, result.data(), result.size(), 0);
+	if (send(_socket, result.data(), result.size(), 0) <= 0) {
+        _logger->error("Failed to send error response to socket\r\n");
     }
 	_is_alive = false;
 }
@@ -142,7 +141,7 @@ void Connection::DoRead() {
         }
 
         if (readed_bytes == 0 || errno == EAGAIN || EWOULDBLOCK) {
-            _logger->debug("Connection closed");
+            _logger->debug("Reading finished");
         } else {
             throw std::runtime_error(std::string(strerror(errno)));
         }
@@ -170,7 +169,11 @@ void Connection::DoWrite() {
     }
     ssize_t written = writev(_socket, msgs, responses.size());
     if (written <= 0) {
-        OnError();
+    	if (errno ==  EAGAIN || errno == EINTR) {
+    		return;	
+    	} else {
+    		OnError();
+    	}
     }
     written_position += written;
 

@@ -31,19 +31,20 @@ void Connection::Start() {
 // See Connection.h
 void Connection::OnError() {
 	_logger->error("Connection on {} socket has error", _socket);
-	_is_alive.store(false, std::memory_order_release);
+	_is_alive.store(false, std::memory_order_relaxed);
 }
 
 // See Connection.h
 void Connection::OnClose() {
 	_logger->debug("Close {} socket", _socket);
-    _is_alive.store(false, std::memory_order_release);
+    _is_alive.store(false, std::memory_order_relaxed);
 }
 
 // See Connection.h
 void Connection::DoRead() {
-	std::lock_guard<std::mutex> lock(_mutex);
 	_logger->debug("Read from {} socket", _socket);
+	std::atomic_thread_fence(std::memory_order_acquire);
+
 	try {
         int readed_bytes = 0;
         while ((readed_bytes = read(_socket, client_buffer + alrdy_prsed_bytes, sizeof(client_buffer) - alrdy_prsed_bytes)) > 0) {
@@ -117,7 +118,12 @@ void Connection::DoRead() {
         }
 
         if (readed_bytes == 0 || errno == EAGAIN || errno == EWOULDBLOCK) {
-            _logger->debug("Connection closed");
+
+            _reading_finished.store(true, std::memory_order_relaxed);
+        	std::atomic_thread_fence(std::memory_order_release);
+            
+            _logger->debug("Reading finished");
+
         } else {
             throw std::runtime_error(std::string(strerror(errno)));
         }
@@ -129,13 +135,20 @@ void Connection::DoRead() {
         	_logger->error("Failed to send error response to socket\r\n");
         }
         OnError();
+
+        _reading_finished.store(true, std::memory_order_relaxed);
+        std::atomic_thread_fence(std::memory_order_release);
     }
 }
 
 // See Connection.h
 void Connection::DoWrite() {
-	std::lock_guard<std::mutex> lock(_mutex);
-	_logger->debug("DoWrite on {}", _socket);
+    _logger->debug("DoWrite on {}", _socket);
+
+    std::atomic_thread_fence(std::memory_order_acquire);
+    if (!_reading_finished.load(std::memory_order_relaxed)) {
+        return;
+    }
 
 	if (responses.empty()) {
         return;
@@ -151,7 +164,13 @@ void Connection::DoWrite() {
     }
     ssize_t written = writev(_socket, msgs, responses.size());
     if (written <= 0) {
-        OnError();
+        if (errno == EINTR || errno == EAGAIN) {
+            _is_alive.store(false, std::memory_order_release);
+            return;
+        } else {
+            OnError();
+        }
+        
     }
     written_position += written;
 
@@ -163,7 +182,10 @@ void Connection::DoWrite() {
     responses.erase(responses.begin(), responses.begin() + i);
     if (responses.empty()) {
         _event.events = EPOLLIN | EPOLLRDHUP | EPOLLERR;
+        _is_alive.store(false, std::memory_order_relaxed);
     }
+
+    std::atomic_thread_fence(std::memory_order_release);
 }
 
 } // namespace MTnonblock

@@ -37,6 +37,8 @@ public:
     // See Server.h
     void Join() override;
 
+
+    void delete_connection(Connection *connection);
 protected:
     void OnRun();
     void OnNewConnection();
@@ -66,7 +68,9 @@ private:
     // threads serving read/write requests
     std::vector<Worker> _workers;
 
+
     std::unordered_set<Connection *> connections;
+
     std::mutex _mtx;
 };
 
