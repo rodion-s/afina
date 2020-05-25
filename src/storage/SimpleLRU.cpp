@@ -27,6 +27,7 @@ void SimpleLRU::push_back(const std::string &key, const std::string &value) {
     }
 }
 
+
 void SimpleLRU::move_back(lru_node &node) {
     if (tail == &node) {
         return;
