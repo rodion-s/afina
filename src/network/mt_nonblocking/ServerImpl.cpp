@@ -120,11 +120,6 @@ void ServerImpl::Stop() {
         throw std::runtime_error("Failed to wakeup workers");
     }
 
-
-    /*Нужно делать shutdown на чтение, иначе некоторые 
-    читающие потоки могут никогда не завершиться (если им присылать постоянно небольшие порции*/
-
-
     std::lock_guard<std::mutex> lock(_mtx);
     for (auto c: connections) {
         shutdown(c->_socket, SHUT_RD);

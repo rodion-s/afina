@@ -128,10 +128,6 @@ void Worker::OnRun() {
 
 
                 server->delete_connection(pconn);
-                /*std::lock_guard<std::mutex> lock(server->_mtx);
-                server->connections.erase(pconn);
-                close(pconn->_socket);
-                delete pconn;*/
             }
         }
         // TODO: Select timeout...
