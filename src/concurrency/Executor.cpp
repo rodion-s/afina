@@ -34,11 +34,11 @@ namespace Concurrency {
             for (;;) {
                 
                 std::unique_lock<std::mutex> lock(executor->mutex);
-                bool result = executor->empty_condition.wait_until(lock, std::chrono::system_clock::now() + executor->idle_time,
+                bool res = executor->empty_condition.wait_until(lock, std::chrono::system_clock::now() + executor->idle_time,
                                                           [executor] { 
                                                           	return !(executor->tasks.empty()) || (executor->state != Executor::State::kRun);
                                                           });
-                lock.unlock();
+                
 
                 if (res) {
                     if ((executor->state == Executor::State::kRun || executor->state == Executor::State::kStopping)
@@ -46,7 +46,9 @@ namespace Concurrency {
                         task = executor->tasks.front();
                         executor->tasks.pop_front();
                         executor->busy_threads++;
+                        lock.unlock();
                         task();
+                        lock.lock();
                         executor->busy_threads--;
                     } else {
                         break;
