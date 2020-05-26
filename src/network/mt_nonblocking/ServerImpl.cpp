@@ -121,16 +121,13 @@ void ServerImpl::Stop() {
     }
 
 
-    /*Нужно делать shutdown на чтение, иначе некоторые 
-    читающие потоки могут никогда не завершиться (если им присылать постоянно небольшие порции*/
-
-
     std::lock_guard<std::mutex> lock(_mtx);
     for (auto c: connections) {
         shutdown(c->_socket, SHUT_RD);
     }
 
-    
+    shutdown(_server_socket, SHUT_RDWR);
+    close(_server_socket);
 }
 
 // See Server.h
@@ -139,7 +136,7 @@ void ServerImpl::Join() {
     for (auto &t : _acceptors) {
         t.join();
     }
-    _acceptors.clear();
+
     for (auto &w : _workers) {
         w.Join();
     }
@@ -151,10 +148,8 @@ void ServerImpl::Join() {
             close(c->_socket);
             delete c;
         }
+        connections.clear();
     }
-
-    shutdown(_server_socket, SHUT_RDWR);
-    close(_server_socket);
 }
 
 // See ServerImpl.h
