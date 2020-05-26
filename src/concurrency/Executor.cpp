@@ -32,15 +32,13 @@ namespace Concurrency {
         try {        
             std::function<void()> task;
             for (;;) {
-                std::atomic<bool> res;
-                {
-                    std::unique_lock<std::mutex> lock(executor->mutex);
-                    bool result = executor->empty_condition.wait_until(lock, std::chrono::system_clock::now() + executor->idle_time,
-                                                              [executor] { 
-                                                              	return !(executor->tasks.empty()) || (executor->state != Executor::State::kRun);
-                                                              });
-                    res.store(result, std::memory_order_relaxed);
-                }
+                
+                std::unique_lock<std::mutex> lock(executor->mutex);
+                bool result = executor->empty_condition.wait_until(lock, std::chrono::system_clock::now() + executor->idle_time,
+                                                          [executor] { 
+                                                          	return !(executor->tasks.empty()) || (executor->state != Executor::State::kRun);
+                                                          });
+                lock.unlock();
 
                 if (res) {
                     if ((executor->state == Executor::State::kRun || executor->state == Executor::State::kStopping)

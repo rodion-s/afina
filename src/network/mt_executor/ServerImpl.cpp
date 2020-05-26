@@ -96,15 +96,6 @@ void ServerImpl::Stop() {
 
 // See Server.h
 void ServerImpl::Join() {
-    std::unique_lock<std::mutex> lock(_mtx);
-    while (workers_num != 0) {
-        _finish.wait(lock, [this]() { return workers_num == 0; });
-    }
-
-    for (auto socket: _client_sockets) {
-        shutdown(socket, SHUT_WR);
-    }
-
     assert(_thread.joinable());
     _thread.join();
     close(_server_socket);
@@ -259,7 +250,7 @@ void ServerImpl::worker(int client_socket) {
 
 
     // We are done with this connection
-
+    shutdown(client_socket, SHUT_WR);
     close(client_socket);
 }
 
