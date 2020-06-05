@@ -60,6 +60,9 @@ private:
     // IO thread
     std::thread _work_thread;
     std::unordered_set<Connection*> connections;
+
+    bool stop_called = false;
+    bool join_called = false;
 };
 
 

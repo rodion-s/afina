@@ -56,7 +56,14 @@ namespace STnonblock {
 ServerImpl::ServerImpl(std::shared_ptr<Afina::Storage> ps, std::shared_ptr<Logging::Service> pl) : Server(ps, pl) {}
 
 // See Server.h
-ServerImpl::~ServerImpl() {}
+ServerImpl::~ServerImpl() {
+    if (!stop_called) {
+        this->Stop();
+    }
+    if (!join_called) {
+        this->Join();
+    }
+}
 
 // See Server.h
 void ServerImpl::Start(uint16_t port, uint32_t n_acceptors, uint32_t n_workers) {
@@ -109,6 +116,7 @@ void ServerImpl::Start(uint16_t port, uint32_t n_acceptors, uint32_t n_workers) 
 
 // See Server.h
 void ServerImpl::Stop() {
+    stop_called = true;
     _logger->warn("Stop network service");
 
     // Wakeup threads that are sleep on epoll_wait
@@ -124,6 +132,7 @@ void ServerImpl::Stop() {
 
 // See Server.h
 void ServerImpl::Join() {
+    join_called = true;
     _logger->warn("Join network service...");
     
     // Wait for work to be complete
