@@ -84,7 +84,6 @@ private:
     std::map<std::reference_wrapper<const std::string>, std::reference_wrapper<lru_node>, std::less<std::string>> _lru_index;
 };
 
-
 } // namespace Backend
 } // namespace Afina
 

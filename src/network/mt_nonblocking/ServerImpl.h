@@ -72,6 +72,9 @@ private:
     std::unordered_set<Connection *> connections;
 
     std::mutex _mtx;
+
+    bool join_called = false;
+    bool stop_called = false;
 };
 
 } // namespace MTnonblock

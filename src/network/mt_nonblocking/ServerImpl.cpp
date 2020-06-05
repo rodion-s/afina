@@ -33,7 +33,14 @@ namespace MTnonblock {
 ServerImpl::ServerImpl(std::shared_ptr<Afina::Storage> ps, std::shared_ptr<Logging::Service> pl) : Server(ps, pl) {}
 
 // See Server.h
-ServerImpl::~ServerImpl() {}
+ServerImpl::~ServerImpl() {
+	if (!stop_called) {
+		this->Stop();
+	}
+	if (!join_called) {
+	    this->Join();
+	}
+}
 
 // See Server.h
 void ServerImpl::Start(uint16_t port, uint32_t n_acceptors, uint32_t n_workers) {
@@ -60,6 +67,11 @@ void ServerImpl::Start(uint16_t port, uint32_t n_acceptors, uint32_t n_workers) 
     }
 
     int opts = 1;
+    if (setsockopt(_server_socket, SOL_SOCKET, (SO_KEEPALIVE), &opts, sizeof(opts)) == -1) {
+        close(_server_socket);
+        throw std::runtime_error("Socket setsockopt() failed: " + std::string(strerror(errno)));
+    }
+
     if (setsockopt(_server_socket, SOL_SOCKET, (SO_REUSEADDR), &opts, sizeof(opts)) == -1) {
         close(_server_socket);
         throw std::runtime_error("Socket setsockopt() failed: " + std::string(strerror(errno)));
@@ -110,6 +122,7 @@ void ServerImpl::Start(uint16_t port, uint32_t n_acceptors, uint32_t n_workers) 
 // See Server.h
 void ServerImpl::Stop() {
     _logger->warn("Stop network service");
+    stop_called = true;
     // Said workers to stop
     for (auto &w : _workers) {
         w.Stop();
@@ -125,16 +138,18 @@ void ServerImpl::Stop() {
         shutdown(c->_socket, SHUT_RD);
     }
 
-    
+    shutdown(_server_socket, SHUT_RDWR);
+    close(_server_socket);
 }
 
 // See Server.h
 void ServerImpl::Join() {
     _logger->warn("Join network service");
+    join_called = true;
     for (auto &t : _acceptors) {
         t.join();
     }
-    _acceptors.clear();
+
     for (auto &w : _workers) {
         w.Join();
     }
@@ -146,10 +161,8 @@ void ServerImpl::Join() {
             close(c->_socket);
             delete c;
         }
+        connections.clear();
     }
-
-    shutdown(_server_socket, SHUT_RDWR);
-    close(_server_socket);
 }
 
 // See ServerImpl.h
