@@ -22,7 +22,6 @@ void Engine::Store(context &ctx) {
         buf = new char[size];
         new_size = size;
     }
-
     memcpy(buf, ctx.Low, size);
 }
 

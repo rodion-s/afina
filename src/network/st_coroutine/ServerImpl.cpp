@@ -147,7 +147,7 @@ void ServerImpl::OnRun() {
 
             // That is some connection!
             auto *pc = static_cast<Connection *>(current_event.data.ptr);
-            // sdelat ne auto, a Connection
+
             auto old_mask = pc->_event.events;
             if ((current_event.events & EPOLLERR) || (current_event.events & EPOLLHUP)) {
                 pc->OnError();

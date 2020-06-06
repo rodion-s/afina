@@ -106,7 +106,7 @@ void Connection::DoRead() {
         }
 
         if (readed_bytes == 0 || errno == EAGAIN || errno == EWOULDBLOCK) {
-            _logger->debug("Finished reading");
+            _logger->debug("Reading finished");
         } else {
             throw std::runtime_error(std::string(strerror(errno)));
         }
@@ -115,7 +115,7 @@ void Connection::DoRead() {
         _logger->error("Failed to process connection on descriptor {}: {}", _socket, ex.what());
         std::string result("ERROR: Failed to process connection\r\n");
         if (send(_socket, result.data(), result.size(), 0) <= 0) {
-            _logger->debug("Cannot response on {} socket", _socket);
+            _logger->debug("Failed to send error response to socket { }\r\n", _socket);
         }
         OnError();
     }

@@ -81,7 +81,7 @@ public:
     Engine(Engine &&) = delete;
     Engine(const Engine &) = delete;
 
-    context *get_cur_routine() { return cur_routine; } // ЭТОГО НЕ БЫЛО
+    context *get_cur_routine() { return cur_routine; }
 
     /**
      * Gives up current routine execution and let engine to schedule other one. It is not defined when
