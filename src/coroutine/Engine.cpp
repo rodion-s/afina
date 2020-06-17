@@ -11,8 +11,12 @@ void Engine::Store(context &ctx) {
     char stack_pos;
     char *top = &stack_pos;
 
-    ctx.Low = top;
-    ctx.High = StackBottom;
+
+    if (top > ctx.Low) {
+        ctx.High = top; 
+    } else {
+        ctx.Low = top;
+    }
     size_t size = ctx.High - ctx.Low;
 
     auto &buf = std::get<0>(ctx.Stack);

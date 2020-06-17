@@ -33,7 +33,14 @@ namespace Network {
         }
 
         // See Server.h
-        ServerImpl::~ServerImpl() {}
+        ServerImpl::~ServerImpl() {
+            if (!stop_called) {
+                ServerImpl::Stop();
+            }
+            if (!join_called) {
+                ServerImpl::Join();
+            }
+        }
 
         void ServerImpl::Start(uint16_t port, uint32_t n_acceptors, uint32_t n_workers)
         {
@@ -64,6 +71,10 @@ namespace Network {
                 close(_server_socket);
                 throw std::runtime_error("Socket setsockopt() failed: " + std::string(strerror(errno)));
             }
+            if (setsockopt(_server_socket, SOL_SOCKET, (SO_REUSEADDR), &opts, sizeof(opts)) == -1) {
+                close(_server_socket);
+                throw std::runtime_error("Socket setsockopt() failed: " + std::string(strerror(errno)));
+            }
 
             if (bind(_server_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
                 close(_server_socket);
@@ -91,6 +102,7 @@ namespace Network {
         // See Server.h
         void ServerImpl::Stop()
         {
+            stop_called = true;
             _logger->warn("Stop network service");
 
             // Wakeup threads that are sleep on epoll_wait
@@ -99,15 +111,16 @@ namespace Network {
             }
 
             for (auto connection : connections) {
-                close(connection->_socket);
-                delete connection;
+                shutdown(connection->_socket, SHUT_RD);
             }
-            close(_server_socket);
+            shutdown(_server_socket, SHUT_RDWR);
+
         }
 
         // See Server.h
         void ServerImpl::Join()
         {
+            join_called = true;
             // Wait for work to be complete
             _work_thread.join();
         }
@@ -192,6 +205,22 @@ namespace Network {
             }
             _logger->warn("Acceptor stopped");
             _ctx = nullptr;
+
+
+            
+
+            for (auto pc: connections) {
+                pc->OnClose();
+                _engine.sched(pc->_ctx);
+            }
+
+
+
+            for (auto connection : connections) {
+                close(connection->_socket);
+                delete connection;
+            }
+            close(_server_socket);
         }
 
         void ServerImpl::OnNewConnection(int epoll_descr)
@@ -228,8 +257,8 @@ namespace Network {
                 // Register connection in worker's epoll
                 pc->Start();
                 pc->_ctx = static_cast<Afina::Coroutine::Engine::context*>(
-                    _engine.run(static_cast<void (*)(Connection*, Afina::Coroutine::Engine&)>([](Connection* pc, Afina::Coroutine::Engine& engine) { pc->work(engine); }),
-                        (Connection*)pc, _engine));
+                    _engine.run(static_cast<void (*)(Connection&, Afina::Coroutine::Engine&)>([](Connection& pc, Afina::Coroutine::Engine& engine) { pc.work(engine); }),
+                        (Connection&)*pc, _engine));
                 pc->cour_worker = _engine.get_cur_routine();
 
                 if (pc->isAlive()) {

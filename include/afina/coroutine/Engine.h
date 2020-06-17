@@ -26,7 +26,7 @@ public:
         char *Low = nullptr;
 
         // coroutine stack end address
-        char *High = nullptr; //БЫЛО Hight!!
+        char *High = nullptr;
 
         // coroutine stack copy buffer
         std::tuple<char *, uint32_t> Stack = std::make_tuple(nullptr, 0);
@@ -70,16 +70,20 @@ protected:
      */
     void Restore(context &ctx);
 
-    /**
-     * Suspend current coroutine execution and execute given context
-     */
-     void Enter(context& ctx);
 
 
 public:
     Engine() : StackBottom(0), cur_routine(nullptr), alive(nullptr) {}
     Engine(Engine &&) = delete;
     Engine(const Engine &) = delete;
+
+    ~Engine() {
+        for (auto coro = alive; coro != nullptr;) {
+            auto tmp = coro;
+            coro = coro->next;
+            delete tmp;
+        }
+    }
 
     context *get_cur_routine() { return cur_routine; }
     /**
@@ -119,7 +123,9 @@ public:
         // Start routine execution
         void *pc = run(main, std::forward<Ta>(args)...);
         idle_ctx = new context();
-
+        
+        idle_ctx->Low = idle_ctx->High = StackBottom;
+        
         if (setjmp(idle_ctx->Environment) > 0) {
             // Here: correct finish of the coroutine section
             yield();
@@ -133,11 +139,18 @@ public:
         this->StackBottom = 0;
     }
 
+
+
+    template <typename... Ta> void *run(void (*func)(Ta...), Ta &&... args) {
+        char coroutine_start = 0;
+        return _run(&coroutine_start, func, std::forward<Ta>(args)...);
+
+    }
     /**
      * Register new coroutine. It won't receive control until scheduled explicitely or implicitly. In case of some
      * errors function returns -1
      */
-    template <typename... Ta> void *run(void (*func)(Ta...), Ta &&... args) {
+    template <typename... Ta> void *_run(char *bottom, void (*func)(Ta...), Ta &&... args) {
         if (this->StackBottom == 0) {
             // Engine wasn't initialized yet
             return nullptr;
@@ -145,7 +158,7 @@ public:
 
         // New coroutine context that carries around all information enough to call function
         context *pc = new context();
-
+        pc->Low = pc->High = bottom;
         // Store current state right here, i.e just before enter new coroutine, later, once it gets scheduled
         // execution starts here. Note that we have to acquire stack of the current function call to ensure
         // that function parameters will be passed along
@@ -173,7 +186,9 @@ public:
             }
 
             // current coroutine finished, and the pointer is not relevant now
+            
             cur_routine = nullptr;
+    
             pc->prev = pc->next = nullptr;
             delete std::get<0>(pc->Stack);
             delete pc;

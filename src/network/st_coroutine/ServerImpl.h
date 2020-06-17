@@ -65,6 +65,9 @@ namespace Network {
 
             Afina::Coroutine::Engine _engine;
             Afina::Coroutine::Engine::context* _ctx;
+
+            bool stop_called = false;
+            bool join_called = false;
         };
 
     } // namespace STcoroutine

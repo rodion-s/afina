@@ -143,7 +143,12 @@ namespace Network {
             }
             ssize_t written = writev(_socket, msgs, responses.size());
             if (written <= 0) {
-                OnError();
+                if (errno == EINTR || errno == EAGAIN) {
+                    _is_alive = false;
+                    return;
+                } else {
+                    OnError();
+                }
             }
             written_position += written;
 
@@ -161,13 +166,17 @@ namespace Network {
         void Connection::work(Afina::Coroutine::Engine& engine)
         {
             while (_is_alive) {
-                if (_event.events & EPOLLIN) {
-                    DoRead();
-                    engine.sched(cour_worker);
-                }
-                if (_event.events & EPOLLOUT) {
-                    DoWrite();
-                    engine.sched(cour_worker);
+                if (_event.events & EPOLLIN || _event.events & EPOLLOUT) {
+                    if (_event.events & EPOLLIN) {
+                        DoRead();
+                        engine.sched(cour_worker);
+                    }
+                    if (_event.events & EPOLLOUT) {
+                        DoWrite();
+                        engine.sched(cour_worker);
+                    }
+                } else {
+                    _is_alive = false;
                 }
             }
         }
