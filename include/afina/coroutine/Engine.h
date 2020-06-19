@@ -81,6 +81,7 @@ public:
         for (auto coro = alive; coro != nullptr;) {
             auto tmp = coro;
             coro = coro->next;
+            delete std::get<0>(tmp->Stack);
             delete tmp;
         }
     }

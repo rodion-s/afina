@@ -144,7 +144,6 @@ namespace Network {
             ssize_t written = writev(_socket, msgs, responses.size());
             if (written <= 0) {
                 if (errno == EINTR || errno == EAGAIN) {
-                    _is_alive = false;
                     return;
                 } else {
                     OnError();
@@ -176,7 +175,7 @@ namespace Network {
                         engine.sched(cour_worker);
                     }
                 } else {
-                    _is_alive = false;
+                    engine.sched(cour_worker);
                 }
             }
         }
